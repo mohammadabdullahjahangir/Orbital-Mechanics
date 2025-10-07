@@ -5,6 +5,10 @@ import math as m
 from datetime import datetime, timedelta
 
 d2r = np.pi / 180.0  # Degrees to Radians
+r2d = 180.0 / np.pi  # Radians to Degrees
+
+def norm(v):
+    return np.linalg.norm(v)
 
 def plot_n_orbits(rs, labels, cb=pd.Earth):
     ax = plt.axes(projection='3d')
@@ -65,6 +69,85 @@ def coes2rv(coes, deg=False, mu=pd.Earth['mu']):
     
     return r, v
 
+
+def rv2coes(r, v, mu = pd.Earth['mu'], degrees = False, print_results = False):
+    # Magnitudes of Position Vector
+    r_norm = norm(r)
+
+    # Specific Angular Momentum
+    h = np.cross(r, v)
+    h_norm = norm(h)
+
+    # Inclination
+    i = m.acos(h[2] / h_norm)
+
+    # Eccentricity Vector
+    e = (1 / mu) * ((norm(v)**2 - mu / r_norm) * r - np.dot(r, v) * v)
+
+    # Eccentricity Scalar
+    e_norm = norm(e)
+
+    # Node Line
+    N = np.cross([0, 0, 1], h)
+    N_norm = norm(N)
+
+    # Right Ascension of the Ascending Node
+    raan = m.acos(N[0] / N_norm)
+    if N[1] < 0:
+        raan = 2 * np.pi - raan
+
+    # Argument of Perigee
+    aop = m.acos(np.dot(N, e) / (N_norm * e_norm))
+    if e[2] < 0:
+        aop = 2 * np.pi - aop
+
+    # True Anomaly
+    ta = m.acos(np.dot(e, r) / (e_norm * r_norm))
+    if np.dot(r, v) < 0:
+        ta = 2 * np.pi - ta
+    
+    # Semi-Major Axis
+    a = r_norm*(1 + e_norm * m.cos(ta)) / (1 - e_norm**2)
+
+    if print_results:
+        print('a', a)
+        print('e', e_norm)
+        print('i', i * r2d)
+        print('raan', raan * r2d)
+        print('aop', aop * r2d)
+        print('ta', ta * r2d)
+
+    if degrees:
+        return [a, e_norm, i * r2d, ta * r2d, aop * r2d, raan * r2d]
+    else:
+        return [a, e_norm, i, ta, aop, raan]
+
+# Calculate Atmospheric Density at Altitude z (km)
+def calc_atmospheric_density(z):
+    rhos, zs = find_rho_z(z)
+    if rhos[0] == 0:
+        return 0.0
+    
+    Hi = -(zs[1] - zs[0]) / m.log(rhos[1] / rhos[0])
+
+    return rhos[0] * m.exp(-(z - zs[0]) / Hi)
+
+# Find Endpoints of Altitude and Density Surrounding Input Altitude
+def find_rho_z(z, zs = pd.Earth['zs'], rhos = pd.Earth['rhos']):
+    if not 1.0 < z < 1000.0:
+        return [0.0, 0.0], [0.0, 0.0]
+
+    # Find the Two Points Surrounding the Given Input Altitude
+    for n in range(len(rhos) - 1):
+        if zs[n] < z < zs[n + 1]:
+            return [rhos[n], rhos[n + 1]], [zs[n], zs[n + 1]]
+        
+    # If Altitude is Outside Range of Table
+    return [0.0, 0.0], [0.0, 0.0]
+
+
+
+
 # Rotation Matrix from ECI to Perifocal Frame
 def eci2perif(raan, aop, i):
     row0 = [-m.sin(raan) * m.cos(i) * m.sin(aop) + m.cos(raan) * m.cos(aop), 
@@ -118,7 +201,6 @@ def tle2coes(tle_filename, mu=pd.Earth['mu'], return_date=False):
     line2 = lines[2].strip().split()
 
     # Extract Relevant Data from TLE
-
     # Epoch
     epoch = line1[3]
     year, month, day, hour = calc_epoch(epoch)
@@ -141,7 +223,6 @@ def tle2coes(tle_filename, mu=pd.Earth['mu'], return_date=False):
     T = 1 / mean_motion * 24 * 3600
     # Semi-Major Axis (km)
     a = (mu * (T / (2 * np.pi))**2)**(1 / 3)
-    
     # Eccentric Anomaly
     E = ecc_anomaly([Me, e], 'Newton')
     # True Anomaly

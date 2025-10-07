@@ -1,8 +1,8 @@
+# Spectral Plots
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import style
-
-
 
 plt.figure(1)
 ax = plt.axes(projection = '3d')

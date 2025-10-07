@@ -1,5 +1,7 @@
 # Used tools.py file and plot_n_orbits function
-
+import sys 
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import matplotlib.pyplot as plt
 import tools as t
