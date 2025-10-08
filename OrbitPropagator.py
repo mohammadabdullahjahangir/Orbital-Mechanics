@@ -1,3 +1,5 @@
+# Orbit Propagator Script
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -14,11 +16,13 @@ def null_perts():
             'Oblateness': False,
             'Moon_Gravity': False,
             'Solar_Gravity': False,
-
+            'Thrust': 0,
+            'ISP': 0,
+            'Thrust Direction': 0
         }
 
 class OrbitPropagator:
-    def __init__(self, state0, r0, v0, tspan, dt, coes = False, deg = True, cb = pd.Earth, perts = null_perts()):
+    def __init__(self, state0, tspan, dt, coes = False, deg = True, mass0 = 0, cb = pd.Earth, perts = null_perts(), propagator = 'lsoda', sc = {}):
         if coes:
             self.r0, self.v0 = t.coes2rv(state0, deg = deg, mu = cb['mu'])
         else:
@@ -27,42 +31,107 @@ class OrbitPropagator:
         self.cb = cb
         self.tspan = tspan
         self.dt = dt
+        self.mass0 = mass0
         
-        self.n_steps = int(np.ceil(self.tspan / self.dt))
-        self.ys = np.zeros((self.n_steps, 6))
-        self.ts = np.zeros((self.n_steps, 1))
+        # Miscellaneous Parameters
+        self.n_steps = int(np.ceil(self.tspan / self.dt)) + 1
+        self.y = np.zeros((self.n_steps + 1, 7))
+        self.ts = np.zeros((self.n_steps + 1, 1))
+        self.alts = np.zeros((self.n_steps + 1))
+        self.propagator = propagator
+        self.step = 0
 
-        self.y0 = self.r0.tolist() + self.v0.tolist()
-        self.ys[0] = self.y0
-        self.step = 1
+        # Initial Conditions
+        self.y[0,:] = self.r0.tolist() + self.v0.tolist() + [self.mass0]
+        self.alts[0] = t.norm(self.r0) - self.cb['radius']
+
 
         self.solver = ode(self.diff_eq)
-        self.solver.set_integrator('dopri5')
-        self.solver.set_initial_value(self.y0, 0)
+        self.solver.set_integrator(self.propagator)
+        self.solver.set_initial_value(self.y[0,:], 0)
         self.solver.set_f_params(self.cb['mu'])
         
         # Define Perturbations Dictionary
         self.perts = perts
-        self.mass = perts.get('mass', 1000.0)  # default mass = 1000 kg
+        self.mass = mass0
 
+        # Store Stop Conditions Dictionary
+        self.stop_conditions_dict = sc
 
+        # Define Dictionary to Map Internal Methods
+        self.stop_conditions_map = {'max_alt': self.check_max_alt, 'min_alt': self.check_min_alt}
+
+        # Create Stop Conditions Function List
+        self.stop_condition_functions = [self.check_deorbit]
+
+        # Fill in the Rest of the Stop Conditions
+        for key in self.stop_conditions_dict:
+            self.stop_condition_functions.append(self.stop_conditions_map[key])
+        
         self.propagate_orbit()
 
-    def propagate_orbit(self):
-        while self.solver.successful() and self.step < self.n_steps:
-            self.solver.integrate(self.solver.t + self.dt)
-            self.ts[self.step] = self.solver.t
-            self.ys[self.step] = self.solver.y
-            self.step += 1
+    # Check if Spacecraft has Deorbited
+    def check_deorbit(self):
+        if self.alts[self.step] < self.cb['deorbit_altitude']:
+            print('Spacecraft deorbited after %.1f seconds' % self.ts[self.step])
+            return False
+        else:
+            return True
 
-        # Extract Arrays at the Step Where Integration Ended
+    # Check if Maximum Altitude Exceeded
+    def check_max_alt(self):
+        if self.alts[self.step] > self.stop_conditions_dict['max_alt']:
+            print('Spacecraft reached maximum altitude after %.1f seconds' % self.ts[self.step])
+            return False
+        else:
+            return True
+
+    # Check if Minimum Altitude Exceeded
+    def check_min_alt(self):
+        if self.alts[self.step] < self.stop_conditions_dict['min_alt']:
+            print('Spacecraft reached minimum altitude after %.1f seconds' % self.ts[self.step])
+            return False
+        else:
+            return True
+
+
+    # Function Called at Each Time Step to Check Stop Conditions
+    def check_stop_conditions(self):
+        # For Each Stop Condition
+        for sc in self.stop_condition_functions:
+            # If returns False, Stop Propagation
+            if not sc():
+                return False
+        else:
+            return True
+
+    
+    # Propagate Orbit based on Given Conditions in init() Function
+    def propagate_orbit(self):
+        print('Propagating Orbit...')
+
+        while self.solver.successful() and self.step < self.n_steps and self.check_stop_conditions():
+            # Integrate Orbit           
+            self.solver.integrate(self.solver.t + self.dt)
+            self.step += 1
+            # Extract Values from Solver Intance
+            self.ts[self.step] = self.solver.t
+            self.y[self.step] = self.solver.y
+
+            # Calculate Altitude at this Time Step
+            self.alts[self.step] = t.norm(self.solver.y[:3]) - self.cb['radius']
+
+
+        # Extract Arrays at the Step Where Propagation Stopped
         self.ts = self.ts[0:self.step]
-        self.rs = self.ys[:self.step, :3]
-        self.vs = self.ys[:self.step ,3:]
+        self.rs = self.y[:self.step, :3]
+        self.vs = self.y[:self.step ,3:6]
+        self.masses = self.y[:self.step, 6]
         self.alts = (np.linalg.norm(self.rs, axis=1) - self.cb['radius']).reshape(self.step, 1)
 
+
     def diff_eq(self, _t, y, mu):
-        rx, ry, rz, vx, vy, vz = y
+        rx, ry, rz, vx, vy, vz, mass = y
         r = np.array([rx, ry, rz])
         v = np.array([vx, vy, vz])
 
@@ -103,14 +172,30 @@ class OrbitPropagator:
             a_j2 = 1.5*self.cb['J2']*self.cb['mu']*self.cb['radius']**2/r_norm**4 * np.array([tx, ty, tz])
             a += a_j2
 
-        
-        return [vx, vy, vz, a[0], a[1], a[2]]
+         # Thrust Perturbation
+        mass_dot = 0.0  # Default: no mass change
+        if self.perts['Thrust']:
+            # Thrust acceleration (F/m)
+            thrust_accel = self.perts['Thrust'] / mass
+            
+            # Thrust direction: -1 = retrograde, 1 = prograde
+            thrust_dir = self.perts['Thrust Direction']
+            v_unit = v / np.linalg.norm(v)
+            
+            # Add thrust acceleration
+            a += thrust_dir * thrust_accel * v_unit
+            
+            # Mass flow rate: mdot = Thrust / (Isp * g0)
+            g0 = 9.80665 / 1000.0  # Convert to km/s^2
+            mass_dot = -self.perts['Thrust'] / (self.perts['ISP'] * g0)
+    
+        return [vx, vy, vz, a[0], a[1], a[2], mass_dot]
 
 
     def calculate_coes(self, degrees = True):
         print('Calculating Classical Orbital Elements...')
-        self.coes = np.zeros((self.n_steps, 6))
-        for n in range(self.n_steps): 
+        self.coes = np.zeros((self.step, 6))
+        for n in range(self.step): 
             self.coes[n, :] = t.rv2coes(self.rs[n, :], self.vs[n, :], mu = self.cb['mu'], degrees = degrees, print_results = False)
 
     def plot_coes(self, hours = False, show_plot = False, save_plot = False, title = 'Classical Orbital Elements', figsize = (16, 8)):

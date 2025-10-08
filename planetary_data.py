@@ -23,7 +23,9 @@ Earth = {
     'J2': 1.082635854e-3,
     'zs': atm[:,0],
     'rhos': atm[:,1]*10**8,
-    'atm_rot_vector': np.array([0, 0, 7.2921150e-5])  # rad/s
+    'atm_rot_vector': np.array([0, 0, 7.2921150e-5]),  # rad/s
+    'deorbit_altitude': 600.0,  # km
+
 
 }
 
