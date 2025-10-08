@@ -21,20 +21,18 @@ cb = pd.Earth
 if __name__ == '__main__':
     # Define Perturbations Dictionary
     perts = null_perts()
-    perts['Aero'] = True
-    perts['Cd'] = 2.2
-    perts['A'] = (1e-3)**2 / 4.0
+    perts['Thrust'] = 0.327
     perts['ISP'] = 4300
     perts['Thrust Direction'] = -1
 
     # Define Stop Conditions
-    sc = {'min_alt': 300.0}
+    sc = {'min_alt': 200.0}
 
     # Initial Mass of Spacecraft
     mass0 = 50
 
     # Calculate Initial State Vector
-    state0 = [cb['radius'] + 800, 0.0, 10.0, 0.0, 0.0, 0.0]
+    state0 = [cb['radius'] + 1500, 0.0, 10.0, 0.0, 0.0, 0.0]
 
     op = OP(state0, tspan, dt, coes = True, deg = True, perts = perts, sc = sc, mass0 = mass0)
     op.plot_alts(show_plot = True, hours = True)

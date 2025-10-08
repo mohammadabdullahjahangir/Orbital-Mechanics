@@ -6,44 +6,104 @@ import planetary_data as pd
 import math as m
 from datetime import datetime, timedelta
 
+
+
 d2r = np.pi / 180.0  # Degrees to Radians
 r2d = 180.0 / np.pi  # Radians to Degrees
+
+
+km2AU = 1.4959787e8 # km to AU
+figsize = (16, 8)
+
 
 def norm(v):
     return np.linalg.norm(v)
 
-def plot_n_orbits(rs, labels, cb=pd.Earth):
-    ax = plt.axes(projection='3d')
+def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,16)):
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(projection='3d')
+    
+    # Plot Trajectories
+    max_value = 0
     n = 0
+    cs = ['c', 'orange', 'b', 'r', 'purple', 'brown', 'cyan', 'pink', 'gray']
+    
+    # Convert rs to list if needed and process
+    rs_plot = []
     for r in rs:
-        ax.plot(r[:, 0], r[:, 1], r[:, 2], label=labels[n])
-        ax.plot([r[0, 0]], [r[0, 1]], [r[0, 2]], 'o')
+        r_copy = r.copy()
+        if AU:
+            r_copy = r_copy / km2AU
+        elif ER:
+            r_copy = r_copy / pd.Earth['radius']
+        rs_plot.append(r_copy)
+    
+    # Calculate max value from all orbits
+    for r in rs_plot:
+        max_ = np.max(np.abs(r))
+        if max_ > max_value:
+            max_value = max_
+    
+    # Plot each orbit
+    n = 0
+    for r in rs_plot:
+        if labels is None:
+            label0 = ''
+        else:
+            label0 = labels[n]
+        
+        # Plot Trajectory and Initial Position
+        ax.plot(r[:, 0], r[:, 1], r[:, 2], c=cs[n % len(cs)], label=label0, linewidth=1)
+        ax.plot([r[0, 0]], [r[0, 1]], [r[0, 2]], 'o', c=cs[n % len(cs)], markersize=5)
         n += 1
     
+    # Radius of Central Body
     r_plot = cb['radius']
-    # Create a sphere for Earth
+    if AU:
+        r_plot = r_plot / km2AU
+    elif ER:
+        r_plot = r_plot / pd.Earth['radius']
+    
+    # Plot Central Body (Sun)
     _u, _v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
     _x = r_plot * np.cos(_u) * np.sin(_v)
     _y = r_plot * np.sin(_u) * np.sin(_v)
     _z = r_plot * np.cos(_v)
-    ax.plot_surface(_x, _y, _z, color='b', alpha=0.3)
+    ax.plot_surface(_x, _y, _z, color='yellow', alpha=0.9)
     
-    l = r_plot * 2.0
+    # Plot axes arrows
+    l = max_value * 0.3
     x, y, z = [0, 0, 0], [0, 0, 0], [0, 0, 0]
     u, v, w = [[l], [0], [0]], [[0], [l], [0]], [[0], [0], [l]]
     ax.quiver(x, y, z, u, v, w, color='r', arrow_length_ratio=0.1)
     
-    max_value = np.max(np.abs(rs))
+    if axes:
+        max_value = axes
+    
+    if AU:
+        ax.set_xlabel('X (AU)')
+        ax.set_ylabel('Y (AU)')
+        ax.set_zlabel('Z (AU)')
+    else:
+        ax.set_xlabel('X (km)')
+        ax.set_ylabel('Y (km)')
+        ax.set_zlabel('Z (km)')
+    
     ax.set_xlim([-max_value, max_value])
     ax.set_ylim([-max_value, max_value])
     ax.set_zlim([-max_value, max_value])
-    ax.set_xlabel('X (km)')
-    ax.set_ylabel('Y (km)')
-    ax.set_zlabel('Z (km)')
-    ax.set_aspect('equal')
-    plt.legend()
-    plt.show()
-
+    ax.set_box_aspect([1, 1, 1])
+    
+    # Set black background for better visibility
+    ax.set_facecolor('black')
+    fig.patch.set_facecolor('black')
+    
+    plt.legend(loc='upper left', fontsize=8)
+    
+    if show_plot:
+        plt.show()
+    if save_plot:
+        plt.savefig('n_orbits.png', dpi=300, facecolor='black')
 # Convert Classical Orbital Elements to Position and Velocity Vectors
 def coes2rv(coes, deg=False, mu=pd.Earth['mu']):
     if deg:
