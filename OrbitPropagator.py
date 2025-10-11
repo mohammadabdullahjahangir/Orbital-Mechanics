@@ -288,6 +288,7 @@ class OrbitPropagator:
 
         # Solar Radiation Pressure
         if self.perts['SRP']:
+
             # Vector Pointing from Sun to Spacecraft
             r_sun2sc = self.cb['states'][self.step, :3] + r
 
@@ -468,9 +469,13 @@ class OrbitPropagator:
             plt.savefig(title + '.png', dpi = dpi)
 
     # 3D Plot of Orbit
-    def plot_3d(self, show_plot = False, save_plot = False):
+    def plot_3d(self, show_plot = False, save_plot = False, title = None):
         fig = plt.figure(figsize=(16, 8))
         ax = fig.add_subplot(111, projection='3d')
+
+        if title:
+            plt.title(title)
+
         ax.plot(self.rs[:, 0], self.rs[:, 1], self.rs[:, 2], 'w', label ='Trajectory')
         ax.plot(self.rs[0, 0], self.rs[0, 1], self.rs[0, 2], 'wo', markersize = 10, label ='Starting Position')
 
