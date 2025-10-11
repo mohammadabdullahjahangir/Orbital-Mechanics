@@ -29,7 +29,7 @@ if __name__ == '__main__':
     sc = {'min_alt': 200.0}
 
     # Initial Mass of Spacecraft
-    mass0 = 50
+    mass0 = 10.0
 
     # Calculate Initial State Vector
     state0 = [cb['radius'] + 1500, 0.0, 10.0, 0.0, 0.0, 0.0]

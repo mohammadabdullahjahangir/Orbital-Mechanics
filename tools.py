@@ -19,7 +19,10 @@ figsize = (16, 8)
 def norm(v):
     return np.linalg.norm(v)
 
-def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,16)):
+def normed(v):
+    return np.array(v) / norm(v)
+
+def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,8)):
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection='3d')
     
@@ -104,6 +107,8 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
         plt.show()
     if save_plot:
         plt.savefig('n_orbits.png', dpi=300, facecolor='black')
+
+
 # Convert Classical Orbital Elements to Position and Velocity Vectors
 def coes2rv(coes, deg=False, mu=pd.Earth['mu']):
     if deg:
@@ -206,8 +211,6 @@ def find_rho_z(z, zs = pd.Earth['zs'], rhos = pd.Earth['rhos']):
         
     # If Altitude is Outside Range of Table
     return [0.0, 0.0], [0.0, 0.0]
-
-
 
 
 # Rotation Matrix from ECI to Perifocal Frame
