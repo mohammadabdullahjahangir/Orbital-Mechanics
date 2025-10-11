@@ -109,6 +109,11 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
         plt.savefig('n_orbits.png', dpi=300, facecolor='black')
 
 
+
+# Define Escape Velocity
+def esc_v(r, mu = pd.Earth['mu']):
+    return m.sqrt( 2 * mu / r)
+
 # Convert Classical Orbital Elements to Position and Velocity Vectors
 def coes2rv(coes, deg=False, mu=pd.Earth['mu']):
     if deg:

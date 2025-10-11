@@ -55,8 +55,8 @@ class OrbitPropagator:
         if coes:
             self.r0, self.v0 = t.coes2rv(state0, deg = deg, mu = cb['mu'])
         else:
-            self.r0 = state0[0:3]
-            self.v0 = state0[3:]
+            self.r0 = np.array(state0[0:3])
+            self.v0 = np.array(state0[3:])
 
 
         # Internally Store Parameters
