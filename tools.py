@@ -1,12 +1,11 @@
 # Tools Script
 
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import planetary_data as pd
 import math as m
 from datetime import datetime, timedelta
-
-
 
 d2r = np.pi / 180.0  # Degrees to Radians
 r2d = 180.0 / np.pi  # Radians to Degrees
@@ -22,10 +21,35 @@ def norm(v):
 def normed(v):
     return np.array(v) / norm(v)
 
-def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,8)):
+# Write a header and data array to a CSV file
+def writecsv(header, data, filename):
+    """Write a header and data array to a CSV file."""
+    # ensure numpy array
+    data = np.array(data)
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(data)
+
+# Join multiple 1D or 2D arrays column-wise, handling shape mismatches
+def joinarrs(arrs):
+    # Ensure all arrays are numpy arrays
+    arrs = [np.atleast_2d(a).T if a.ndim == 1 else a for a in arrs]
+    
+    # Check that all arrays have the same number of rows
+    n_rows = [a.shape[0] for a in arrs]
+    if len(set(n_rows)) != 1:
+        raise ValueError(f"Arrays have different lengths: {n_rows}")
+    
+    return np.hstack(arrs)
+
+def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,8), title = None):
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection='3d')
-    
+
+    if title is None:
+        plt.title(title)
+        
     # Plot Trajectories
     max_value = 0
     n = 0

@@ -98,7 +98,7 @@ class OrbitPropagator:
         self.stop_conditions_dict = sc
 
         # Define Dictionary to Map Internal Methods
-        self.stop_conditions_map = {'max_alt': self.check_max_alt, 'min_alt': self.check_min_alt}
+        self.stop_conditions_map = {'max_alt': self.check_max_alt, 'min_alt': self.check_min_alt, 'escape_velocity': self.check_escape_velocity}
 
         # Create Stop Conditions Function List
         self.stop_condition_functions = [self.check_deorbit]
@@ -163,7 +163,8 @@ class OrbitPropagator:
     # Check if Spacecraft has Deorbited
     def check_deorbit(self):
         if self.alts[self.step] < self.cb['deorbit_altitude']:
-            print('Spacecraft deorbited after %.1f seconds' % self.ts[self.step])
+            # Print that Stop Condition is Reached
+            self.print_stop_condition('deorbit_altitude')
             return False
         else:
             return True
@@ -171,7 +172,8 @@ class OrbitPropagator:
     # Check if Maximum Altitude Exceeded
     def check_max_alt(self):
         if self.alts[self.step] > self.stop_conditions_dict['max_alt']:
-            print('Spacecraft reached maximum altitude after %.1f seconds' % self.ts[self.step])
+            # Print that Stop Condition is Reached
+            self.print_stop_condition('max_alt')
             return False
         else:
             return True
@@ -179,11 +181,25 @@ class OrbitPropagator:
     # Check if Minimum Altitude Exceeded
     def check_min_alt(self):
         if self.alts[self.step] < self.stop_conditions_dict['min_alt']:
-            print('Spacecraft reached minimum altitude after %.1f seconds' % self.ts[self.step])
+            # Print that Stop Condition is Reached
+            self.print_stop_condition('min_alt')
             return False
         else:
             return True
 
+    # Check if Escape Velocity Exceeded
+    def check_escape_velocity(self):
+        # If Escape Velocity is Less than Current Velocity Norm
+        if t.esc_v(t.norm(self.y[self.step,:3]), mu = self.cb['mu']) < t.norm(self.y[self.step, 3:6]):
+
+            # Print that Stop Condition is Reached
+            self.print_stop_condition('escape_velocity')
+            return False
+        else:
+            return True
+        
+    def print_stop_condition(self, parameter):
+        print('Spacecraft has reached %s after %.2f seconds(%.2f hours or %.1f days)' % (parameter, self.ts[self.step] * days, self.ts[self.step] * hours, self.ts[self.step]))
 
     # Function Called at Each Time Step to Check Stop Conditions
     def check_stop_conditions(self):
@@ -268,7 +284,7 @@ class OrbitPropagator:
         # Thrust Perturbations
         if self.perts['Thrust']:
             # Thrust Vector
-            a += self.perts['Thrust Direction'] * t.normed(v) * self.perts['Thrust'] / mass / 1000.0
+            a += self.perts['Thrust_Direction'] * t.normed(v) * self.perts['Thrust'] / mass / 1000.0
 
             # Derivative of Total Mass
             dmdt = -self.perts['Thrust'] / (self.perts['ISP'] * 9.81)
@@ -439,9 +455,6 @@ class OrbitPropagator:
         
         if save_plot:
             fig.savefig(title +'.png', dpi = 300)
-        
-
-        
 
     # Plot Altitude Over Time
     def plot_alts(self, hours = False, days = False, show_plot = False, save_plot = False, title = 'Radial Distance vs Time', figsize = (20, 10), dpi = 500):
