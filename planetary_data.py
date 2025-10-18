@@ -3,7 +3,7 @@ import numpy as np
 # Converting Days to Seconds
 day2sec = 24 * 3600
 
-G_meters = 6.67408e-11  # km^3/kg/s^2, gravitational constant
+G_meters = 6.67430e-11  # km^3/kg/s^2, gravitational constant
 G = G_meters *10**-9
 
 Sun = {

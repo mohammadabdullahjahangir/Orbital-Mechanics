@@ -1,11 +1,12 @@
 # Tools Script
-
+import os
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import planetary_data as pd
 import math as m
 from datetime import datetime, timedelta
+from Spacecraft import Spacecraft as SC
 
 d2r = np.pi / 180.0  # Degrees to Radians
 r2d = 180.0 / np.pi  # Radians to Degrees
@@ -22,7 +23,7 @@ def normed(v):
     return np.array(v) / norm(v)
 
 # Write a header and data array to a CSV file
-def writecsv(header, data, filename):
+def write_csv(header, data, filename):
     """Write a header and data array to a CSV file."""
     # ensure numpy array
     data = np.array(data)
@@ -43,9 +44,16 @@ def joinarrs(arrs):
     
     return np.hstack(arrs)
 
-def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,8), title = None):
+def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = False, axes = False, AU = False, ER = False, figsize = (16,8), title = None, az = -60, el = 30, dpi = 300, output_dir = None, no_axes = False):
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection='3d')
+
+    # Set viewing angle
+    ax.view_init(elev=el, azim=az)
+
+    # Handle axes visibility
+    if no_axes:
+        ax.set_axis_off()
 
     if title is None:
         plt.title(title)
@@ -54,6 +62,7 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
     max_value = 0
     n = 0
     cs = ['c', 'orange', 'b', 'r', 'purple', 'brown', 'cyan', 'pink', 'gray']
+
     
     # Convert rs to list if needed and process
     rs_plot = []
@@ -84,6 +93,7 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
         ax.plot([r[0, 0]], [r[0, 1]], [r[0, 2]], 'o', c=cs[n % len(cs)], markersize=5)
         n += 1
     
+
     # Radius of Central Body
     r_plot = cb['radius']
     if AU:
@@ -97,12 +107,6 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
     _y = r_plot * np.sin(_u) * np.sin(_v)
     _z = r_plot * np.cos(_v)
     ax.plot_surface(_x, _y, _z, color='yellow', alpha=0.9)
-    
-    # Plot axes arrows
-    l = max_value * 0.3
-    x, y, z = [0, 0, 0], [0, 0, 0], [0, 0, 0]
-    u, v, w = [[l], [0], [0]], [[0], [l], [0]], [[0], [0], [l]]
-    ax.quiver(x, y, z, u, v, w, color='r', arrow_length_ratio=0.1)
     
     if axes:
         max_value = axes
@@ -130,8 +134,108 @@ def plot_n_orbits(rs, labels, cb = pd.Earth, show_plot = False, save_plot = Fals
     if show_plot:
         plt.show()
     if save_plot:
+        if output_dir:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            filepath = os.path.join(output_dir, f"{title or 'orbits'}.png")
+        else:
+            filepath = f"{title or 'orbits'}.png"
+        fig.savefig(filepath, dpi=dpi)
         plt.savefig('n_orbits.png', dpi=300, facecolor='black')
 
+# Define Hohmann Transfer Scalars
+def hohmann_transfer_scalars(r0, r1, altitude = True, cb = pd.Earth):
+
+    # if Passing in Altitude (Not Semi-Major Axis)
+    if altitude:
+        # Add Central Body Radius to r Values
+        r0 += cb['radius']
+        r1 += cb['radius']
+
+    # Calculate Semi-Major Axis of Transfer Orbit
+    a_transfer = (r0 + r1) / 2.0
+
+    # Calculate Velocities of Ciruclar Orbits
+    v_circ_init = m.sqrt(cb['mu'] / r0)
+    v_circ_final = m.sqrt(cb['mu'] / r1)
+
+    # Calculate Initial and Final Transfer Orbit Velocities (vis-viva equation)
+    v0_transfer = m.sqrt(cb['mu'] * (2 / r0 - 1 / a_transfer))
+    v1_transfer = m.sqrt(cb['mu'] * (2 / r1 - 1 / a_transfer))
+
+    # Calculate Transfer Time
+    t_transfer = m.pi * m.sqrt(a_transfer ** 3 / cb['mu'])
+
+    # Calculate DeltaV Values
+    delta_vs = [abs(v0_transfer - v_circ_init), abs(v_circ_final - v1_transfer)]
+
+    return delta_vs, t_transfer
+
+# Define Hohmann Transfer
+def hohmann_transfer(r0 = 0, r1 = 0, cb = pd.Earth, coes0 = [], coes1 = [], altitude = True, propagate = False, dt = 100, output_dir = '', names = ['Initial', 'Final', 'Transfer'], write_output = False):
+    
+    # Check if COEs Passed In 
+    if coes0:
+        # Extract r0 and r1 Values
+        r0 = coes0[0]
+        r1 = coes1[0]
+
+    # If Passing in Altitude (Not Semi-Major Axis)
+    elif altitude:
+        # Add Central Body Radius to r Values
+        r0 += cb['radius']
+        r1 += cb['radius']
+
+    # Calculate Semi-Major Axis of Transfer Orbit
+    a_transfer = (r0 + r1) / 2.0
+
+    # Calculate Velocities of Ciruclar Orbits
+    v_circ_init = m.sqrt(cb['mu'] / r0)
+    v_circ_final = m.sqrt(cb['mu'] / r1)
+
+    # Calculate Initial and Final Transfer Orbit Velocities (vis-viva equation)
+    v0_transfer = m.sqrt(cb['mu'] * (2 / r0 - 1 / a_transfer))
+    v1_transfer = m.sqrt(cb['mu'] * (2 / r1 - 1 / a_transfer))
+
+    # Calculate Transfer Time
+    t_transfer = m.pi * m.sqrt(a_transfer ** 3 / cb['mu'])
+
+    # Calculate DeltaV Values
+    delta_vs = [abs(v0_transfer - v_circ_init), abs(v_circ_final - v1_transfer)]
+
+    # Propagate Orbits
+    if propagate:
+        # If COEs not Passed In
+        if not coes0:
+
+            # create COEs List
+            coes0 = [r0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            coes1 = [r1, 0.0, 0.0, 180.0, 0.0, 0.0]
+
+        # Calculate Eccentricity of Transfer Orbit
+        e_transfer = 1 - r0 / a_transfer
+
+        # COEs for Transfer Orbit
+        coes_transfer = [a_transfer, e_transfer, coes0[2], 0.0, coes0[4], coes0[5]]
+
+        # Calculate Periods of Initial and Final Orbits
+        T0 = 2 * np.pi * (r0 ** 3 / cb['mu']) ** 0.5
+        T1 = 2 * np.pi * (r1 ** 3 / cb['mu']) ** 0.5
+
+        # Create Spacecraft Instances and Propagate Orbits
+        sc0 = SC(coes0, T0, dt, coes = True, output_dir = os.path.join(output_dir, names[0]))
+        sc1 = SC(coes1, T1, dt, coes = True, output_dir = os.path.join(output_dir, names[1]))
+        sc_transfer = SC(coes_transfer, t_transfer, dt, coes = True, output_dir = os.path.join(output_dir, names[0]))
+
+        # Write Output Files
+        if write_output:
+            sc0.write_traj()
+            sc1.write_traj()
+            sc_transfer.write_traj()
+        
+        return sc0, sc1, sc_transfer, delta_vs
+
+    return delta_vs, t_transfer
 
 
 # Define Escape Velocity
@@ -165,6 +269,21 @@ def coes2rv(coes, deg=False, mu=pd.Earth['mu']):
     
     return r, v
 
+def rv2period(r, v, mu):
+    # Calculate Specific Orbital Energy
+    r_mag = np.linalg.norm(r)
+    v_mag = np.linalg.norm(v)
+    
+    # Specific Energy
+    epsilon = v_mag**2 / 2 - mu / r_mag
+    
+    # Semi-Major Axis
+    a = -mu / (2 * epsilon)
+    
+    # Orbital Period
+    T = 2 * np.pi * np.sqrt(a**3 / mu)
+    
+    return T
 
 def rv2coes(r, v, mu = pd.Earth['mu'], degrees = False, print_results = False):
     # Magnitudes of Position Vector
